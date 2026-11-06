@@ -1,0 +1,8 @@
+              precision    recall  f1-score   support
+
+         비생존     0.7786    0.9273    0.8465       110
+          생존     0.8333    0.5797    0.6838        69
+
+    accuracy                         0.7933       179
+   macro avg     0.8060    0.7535    0.7651       179
+weighted avg     0.7997    0.7933    0.7838       179

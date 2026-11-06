@@ -1,0 +1,25 @@
+{
+  "dataset_handle": "yasserh/titanic-dataset/versions/1",
+  "source_url": "https://www.kaggle.com/datasets/yasserh/titanic-dataset",
+  "download_method": "kagglehub.dataset_download",
+  "collected_at_utc": "2026-11-05T10:35:43.750802+00:00",
+  "raw_file": "Titanic-Dataset.csv",
+  "sha256": "7d118fef8b6ccf7f81111877bc388536f7b1e498a655e3d649d19aaa010e9f6f",
+  "rows": 891,
+  "columns": [
+    "PassengerId",
+    "Survived",
+    "Pclass",
+    "Name",
+    "Sex",
+    "Age",
+    "SibSp",
+    "Parch",
+    "Ticket",
+    "Fare",
+    "Cabin",
+    "Embarked"
+  ],
+  "license_at_collection": "CC0: Public Domain (Kaggle dataset metadata)",
+  "scope": "이 CSV에 정답이 있는 승객 표본. 전체 탑승객·승무원 전체가 아님."
+}
