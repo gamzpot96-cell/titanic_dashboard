@@ -3,7 +3,7 @@
 Windows PowerShell에서 이 폴더를 열고 아래 순서로 실행합니다.
 
 ```powershell
-py -3.10 -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe prepare_project.py
 .\.venv\Scripts\python.exe -m streamlit run app.py
