@@ -47,11 +47,13 @@ py -3.12 -m venv .venv-local
 
 이 앱은 데이터베이스 대신 CSV 파일을 사용합니다. 아래 ERD는 **원본·분석용 복사본·평가 예측 결과의 논리적 연결 관계**입니다. `PK`는 파일 안의 고유 키, `FK`는 다른 파일과 연결할 때 사용하는 열이며 데이터베이스의 강제 제약은 아닙니다. 도식에서 한글 열은 영문 별칭과 `원본 열` 주석으로 표시했습니다.
 
+관계선에는 연결 기호만 표시하고, 연결 열과 의미는 도식 아래에서 설명합니다.
+
 ```mermaid
 erDiagram
     direction TB
-    PASSENGERS ||--|| PREPARED : "PassengerId로 대응"
-    PASSENGERS ||--o| HOLDOUT : "평가 승객만 포함"
+    PASSENGERS ||--|| PREPARED : ""
+    PASSENGERS ||--o| HOLDOUT : ""
 
     PASSENGERS["원본 승객 · Titanic-Dataset.csv"] {
         int PassengerId PK
@@ -101,8 +103,8 @@ erDiagram
     }
 ```
 
-- 원본 승객 **891명과 분석용 승객 891명은 1:1**로 대응합니다. 분석용 파일은 이름·티켓·선실 번호를 제외하고 `FamilySize`, `IsAlone`을 추가한 복사본입니다.
-- 원본 승객 1명에 평가 예측 행은 **0개 또는 1개**입니다. 평가 대상으로 분리한 **179명만** `model/holdout_predictions.csv`에 포함됩니다. `actual`은 실제 정답, `predicted`는 모델의 분류 결과입니다.
+- `PASSENGERS` → `PREPARED`: `PassengerId`로 연결하며, 원본 승객 **891명과 분석용 승객 891명은 1:1**로 대응합니다. 분석용 파일은 이름·티켓·선실 번호를 제외하고 `FamilySize`, `IsAlone`을 추가한 복사본입니다.
+- `PASSENGERS` → `HOLDOUT`: `PassengerId`로 연결하며, 원본 승객 1명에 평가 예측 행은 **0개 또는 1개**입니다. 평가 대상으로 분리한 **179명만** `model/holdout_predictions.csv`에 포함됩니다. `actual`은 실제 정답, `predicted`는 모델의 분류 결과입니다.
 - Q&A 사실표는 표본 집계·모델 평가를 요약한 독립 자료입니다. 승객별 외래 키가 없으므로 관계선을 그리지 않았습니다. 모델 설명서와 보도 검수 지침도 검색용 문서입니다.
 - 수집 기록 JSON, 모델 pkl, 평가 지표 JSON은 행 단위로 연결하는 테이블이 아니므로 이 ERD에서 제외했습니다.
 
