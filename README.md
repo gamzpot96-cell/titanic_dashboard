@@ -1,16 +1,135 @@
-# 타이타닉 Streamlit 앱
+# 타이타닉 데이터 분석·생존 예측 대시보드
 
-Windows PowerShell에서 이 폴더를 열고 아래 순서로 실행합니다.
+Kaggle 공개 승객 표본을 수집·분석하고, 생존 예측 모델과 근거 검색 Q&A를 실습하는 Streamlit 학습용 앱입니다. **통계 계산·생존 예측·AI 문장 생성은 서로 다른 기능**으로 구분합니다.
+
+## 주요 기능
+
+| 메뉴 | 구현 내용 |
+|---|---|
+| 프로젝트 안내 | 표본 규모·생존율·결측값·수집 이력 표시 |
+| 데이터 분석 | 성별·객실 등급 필터, 성별·등급·항구별 생존율, 연령 분포, 결측값 표, 선택 표본 CSV 다운로드 |
+| 생존 예측 실습 | 가상 승객의 조건으로 저장된 모델의 추정값과 분류 결과 확인 |
+| 모델 평가 | 모델 비교, 정확도·재현율·ROC-AUC, 혼동 행렬과 하위 집단 평가 |
+| 분석 Q&A | 사실표·모델 설명·보도 검수 지침의 무료 검색과 선택적 AI 답변 |
+
+## 빠른 실행 — Windows 11 / PowerShell
+
+저장된 평가 기록의 환경은 **Python 3.12.10**입니다. Python 3.12와 Git을 준비하고 작업할 상위 폴더에서 실행합니다. `.venv-local`은 기존 환경과 구분하기 위한 새 가상환경입니다.
 
 ```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe prepare_project.py
-.\.venv\Scripts\python.exe -m streamlit run app.py
+git clone -c core.autocrlf=true https://github.com/gamzpot96-cell/titanic_dashboard.git
+cd titanic_dashboard
+py -3.12 -m venv .venv-local
+.\.venv-local\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv-local\Scripts\python.exe prepare_project.py
+.\.venv-local\Scripts\python.exe -m streamlit run app.py
 ```
 
-브라우저 주소: http://localhost:8501 . 실행한 컴퓨터에서만 사용하며 인터넷에 자동 게시되지 않습니다.
+**클론 옵션의 이유:** 현재 수집 기록의 SHA-256은 CRLF 줄바꿈의 CSV를 기준으로 합니다. GitHub에 저장된 CSV는 LF여서 수치가 같아도 검증값이 달라집니다. 위의 저장소별 `core.autocrlf=true` 설정으로 체크아웃하면 기록된 원본 바이트를 복원할 수 있음을 확인했습니다. 전역 Git 설정은 바꾸지 않습니다.
 
-AI 답변은 선택 기능입니다. requirements-rag.txt를 설치하고 화면에 키와 모델 ID를 입력합니다. 무료 근거 검색은 키 없이 실행됩니다.
+`prepare_project.py`는 원본을 확인하고 분석용 복사본·학습 모델·평가 결과·사실표를 생성합니다. 현재 환경에서 다시 학습하므로 다른 환경에서 만든 모델의 버전 차이를 줄일 수 있습니다. 기존 원본 CSV는 덮어쓰지 않으며 검증값이 다르면 중단합니다.
 
-포함된 모델은 검증 환경에서 학습한 파일입니다. 위 prepare_project.py 명령으로 본인 환경에서 다시 학습하면 파이썬 환경 차이를 줄일 수 있습니다. 원본 CSV는 그대로 보존됩니다.
+정상 준비 메시지에는 원본 **891행**, 선택 모델, 평가 정확도, 사실표 **21개**가 표시됩니다. 앱 실행 후 터미널의 `Local URL`로 접속합니다. 기본 주소는 **http://localhost:8501**이며 포트가 사용 중이면 표시된 실제 주소를 따릅니다. 종료는 터미널에서 `Ctrl+C`입니다. 로컬 실행만으로 인터넷에 게시되지는 않습니다.
+
+## 데이터와 분석 범위
+
+출처: [Titanic Dataset / Yasser H. — Kaggle](https://www.kaggle.com/datasets/yasserh/titanic-dataset)
+
+- 수집 도구·고정 버전: `kagglehub.dataset_download("yasserh/titanic-dataset/versions/1")`.
+- 원본 `data/Titanic-Dataset.csv`: **891행·12열**, 생존 342명·비생존 549명. 이는 정답이 있는 승객 표본이며 전체 탑승객·승무원 명단이 아닙니다.
+- 수집 시각·출처·버전·SHA-256: [`data/collection_manifest.json`](data/collection_manifest.json).
+- 분석용 복사본: `data/titanic_prepared.csv`. 이름·티켓·선실 번호를 제외하고 가족 관련 변수를 추가합니다.
+- 연령 분석에서는 Age가 누락된 **177명**을 제외합니다. 표본 전체 생존율은 **38.38%**입니다.
+
+데이터 분석 필터와 Q&A 사실표는 별개입니다. **화면에서 성별·등급을 바꿔도 Q&A는 저장된 사실표의 범위를 사용합니다.** 이 자료만으로 사고 원인·인물의 발언·역사적 사실을 검증하지 않습니다.
+
+## 생존 예측 모델
+
+입력은 객실 등급, 기록된 성별, 나이, 동반 형제·배우자 수, 동반 부모·자녀 수, 기록된 승선 요금, 승선 항구입니다. `FamilySize=SibSp+Parch+1`, `IsAlone=(FamilySize==1)` 두 열을 추가해 총 9개 열을 전처리에 사용합니다.
+
+1. 난수 42로 학습 **80% / 712명**, 평가 **20% / 179명**을 분리합니다.
+2. 숫자 결측값은 학습 구간의 중앙값, 범주 결측값은 최빈값으로 채우고 표준화·원핫 인코딩을 적용합니다.
+3. 로지스틱 회귀와 랜덤 포레스트를 **학습 데이터의 5분할 교차 검증 ROC-AUC**로 비교합니다. 전처리도 각 학습 구간에서 다시 학습합니다.
+4. 선택한 모델을 남겨 둔 평가 데이터로 평가하고 저장합니다. 저장 모델은 학습용 80%로만 학습한 상태입니다.
+
+현재 저장된 [`model/metrics.json`](model/metrics.json)의 결과는 다음과 같습니다. **이번 README 작성 중 새로 학습한 점수가 아니며 공식 Kaggle 대회 제출 점수도 아닙니다.**
+
+| 지표 | 저장된 값 |
+|---|---|
+| 선택 모델 | `random_forest` |
+| 정확도 | **79.33%** |
+| 생존 재현율 | **57.97%** |
+| ROC-AUC | **0.8449** |
+| 기준 모델 정확도 | **61.45%** |
+
+생존 추정값 **0.5 이상**을 생존으로 분류합니다. 출력값은 확률 보정을 하지 않은 모델 추정값이며 실제 개인의 생존 가능성이나 조건 변경의 인과 효과가 아닙니다. 가족이 학습·평가 양쪽에 나뉠 수 있고 작은 하위 집단의 지표는 불안정하므로 정확도 하나만으로 판단하지 않습니다.
+
+## 분석 Q&A
+
+| 자료 | 구성 | 질문 예시 |
+|---|---|---|
+| A | 사실표 21개, `F01`~`F21` | 여성 승객의 생존율은 얼마인가요? |
+| B | A + 모델 설명서, `M01`~`M06` | 모델은 어떤 입력을 사용하나요? |
+| C | B + 보도 검수 지침, `R01`~`R04` | 기사에서 이 표본의 결과를 전체 탑승객의 통계로 써도 되나요? |
+
+검색은 문자 2~4개 조각을 비교하는 scikit-learn TF-IDF 방식으로, 유사한 근거를 최대 4개 찾습니다. 별도 벡터 DB 서버나 검색용 임베딩 API는 사용하지 않습니다. 검색 표현에 따라 필요한 근거를 놓칠 수 있습니다.
+
+| 답변 방식 | 동작과 비용 |
+|---|---|
+| **근거 검색 (무료)** | 검색된 원문과 근거 ID·계산 기준 표시. API 키·추가 AI 패키지 불필요 |
+| **AI 답변 (API 비용 발생)** | 동일하게 검색한 근거와 질문을 OpenAI에 보내 3문장 이내의 답변 작성. 실제 호출 시 API 사용량에 따라 비용 발생 |
+
+Q&A는 인터넷을 추가 검색하거나 원본 CSV를 즉석에서 새로 계산하는 기능이 아닙니다. 검색 결과가 없으면 확인 불가 문구를 반환합니다. AI가 검색하지 않은 ID를 인용하거나 근거 ID가 없으면 답변 표시를 차단하지만, **유효한 ID가 있어도 문장 전체가 정확하다는 뜻은 아닙니다.**
+
+### AI 답변을 선택할 때만 추가 설치
+
+프로젝트 폴더의 PowerShell에서 실행합니다.
+
+```powershell
+.\.venv-local\Scripts\python.exe -m pip install -r requirements-rag.txt
+```
+
+앱의 AI 답변 모드에 본인 OpenAI API 키와 사용 가능한 정확한 모델 ID를 입력합니다. 코드에 고정한 기본 답변 모델은 없습니다. `OPENAI_API_KEY`, `OPENAI_MODEL` 환경변수가 있으면 입력란의 초기값으로 사용합니다. `.env` 파일을 자동으로 읽는 코드는 없습니다.
+
+답변 생성은 `titanic_core/evidence.py`의 Chat Completions 호출이 담당하고, 생존 예측은 저장된 scikit-learn 모델이 담당합니다. 모델별 지원 인자는 다르므로 답변 모델을 바꿀 때 API 호환성을 확인하세요. **생존 예측 모델 이름인 `random_forest`를 OpenAI 모델 ID로 입력하지 않습니다.**
+
+API 키는 코드·Git 커밋·공유 화면에 포함하지 마세요. C의 보도 검수 지침은 이 프로젝트에서 작성한 자료이며 역사적 사건의 공식 규정집이 아닙니다.
+
+## 코드와 결과물
+
+| 경로 | 역할 |
+|---|---|
+| `app.py` | 시작점과 5개 페이지 연결 |
+| `prepare_project.py` | 데이터 확인 → 분석용 복사본 → 학습·평가 → 근거 자료 생성 |
+| `views/` | 프로젝트 안내·데이터 분석·생존 예측·모델 평가·Q&A |
+| `titanic_core/config.py` | 경로·데이터 출처·입력 열·난수 설정 |
+| `titanic_core/data.py` | 수집·검증·파생 변수·집단별 통계 |
+| `titanic_core/modeling.py` | 전처리·학습·평가·저장·추론 |
+| `titanic_core/evidence.py` | 사실표·설명서 생성, 검색, AI 답변, 근거 ID 검사 |
+| `data/` | 원본·분석용 CSV와 수집 기록 |
+| `model/` | 모델 pkl, 지표 JSON, 분류 보고서, 평가 표본 예측, 집단별 지표 |
+| `rag/` | `titanic_facts.csv`, 모델 설명서와 보도 검수 지침 |
+
+현재 저장소는 로컬 앱 구성입니다. Colab 학습·Gradio 시연·배포용 ZIP 생성 노트북은 이 저장소에 포함되어 있지 않습니다.
+
+## 오류 확인과 검증 범위
+
+| 상황 | 확인할 내용 |
+|---|---|
+| 원본 SHA-256 검증값 불일치 | 줄바꿈 변경이나 실제 파일 수정 여부 확인. 기존 원본을 보관하고 위의 클론 설정으로 새 폴더에서 다시 내려받기. 기록된 검증값을 임의로 고치지 않기 |
+| 원본은 있는데 수집 기록이 없음 | `data/collection_manifest.json`을 함께 내려받았는지 확인 |
+| 모델 버전·학습 데이터 불일치 | 올바른 원본을 준비한 뒤 현재 가상환경에서 `prepare_project.py` 재실행 |
+| `No module named 'openai'` | AI 답변을 사용할 환경에 `requirements-rag.txt` 설치 |
+| AI 요청 실패 | 본인 API 키·모델 ID·권한·요금 한도 확인. 무료 근거 검색으로 나누어 확인 |
+
+README 작성 시 소스 구문, 891행·12열과 정답 수, 저장된 평가 지표, 원본 검증값의 줄바꿈 차이와 복원 방식을 확인했습니다. **이번 문서 점검에서 Windows 새 설치·모델 재학습·유료 API 응답을 다시 실행·검증한 것은 아닙니다.**
+
+## 출처와 이용 조건
+
+- 데이터 출처: [Kaggle Titanic Dataset](https://www.kaggle.com/datasets/yasserh/titanic-dataset). 수집 기록에는 **CC0: Public Domain**으로 기록되어 있습니다. 이 기록과 별개로 배포·재사용 시 원본 페이지의 최신 이용 조건을 확인하세요.
+- 코드·설명 초안 작성에 AI를 활용했습니다. 기사에 옮길 때는 표본 범위·계산식·인용 근거와 제출 기관의 AI 표시 기준을 사람이 확인합니다.
+- 이름·티켓·선실 번호는 기본 분석 표시·다운로드·모델 입력에서 제외합니다. 원본 CSV에는 해당 기록이 있으므로 원본 자체를 공유할 때는 별도로 검토합니다.
+- 이 저장소에는 별도의 코드 `LICENSE` 파일이 없습니다. 데이터 이용 조건과 코드 이용 조건은 구분해야 합니다.
+
+관련 프로젝트: [Olist 대시보드](https://github.com/gamzpot96-cell/olist_dashboard)
+
