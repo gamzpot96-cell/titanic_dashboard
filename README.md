@@ -43,6 +43,69 @@ py -3.12 -m venv .venv-local
 
 데이터 분석 필터와 Q&A 사실표는 별개입니다. **화면에서 성별·등급을 바꿔도 Q&A는 저장된 사실표의 범위를 사용합니다.** 이 자료만으로 사고 원인·인물의 발언·역사적 사실을 검증하지 않습니다.
 
+## 데이터 관계도 (ERD)
+
+이 앱은 데이터베이스 대신 CSV 파일을 사용합니다. 아래 ERD는 **원본·분석용 복사본·평가 예측 결과의 논리적 연결 관계**입니다. `PK`는 파일 안의 고유 키, `FK`는 다른 파일과 연결할 때 사용하는 열이며 데이터베이스의 강제 제약은 아닙니다. 도식에서 한글 열은 영문 별칭과 `원본 열` 주석으로 표시했습니다.
+
+```mermaid
+erDiagram
+    direction TB
+    PASSENGERS ||--|| PREPARED : "PassengerId로 대응"
+    PASSENGERS ||--o| HOLDOUT : "평가 승객만 포함"
+
+    PASSENGERS["원본 승객 · Titanic-Dataset.csv"] {
+        int PassengerId PK
+        int Survived
+        int Pclass
+        string Name
+        string Sex
+        float Age
+        int SibSp
+        int Parch
+        string Ticket
+        float Fare
+        string Cabin
+        string Embarked
+    }
+
+    PREPARED["분석용 승객 · titanic_prepared.csv"] {
+        int PassengerId PK, FK
+        int Pclass
+        string Sex
+        float Age
+        int SibSp
+        int Parch
+        float Fare
+        string Embarked
+        int FamilySize
+        int IsAlone
+        int Survived
+    }
+
+    HOLDOUT["평가 예측 · holdout_predictions.csv"] {
+        int PassengerId PK, FK
+        int actual
+        int predicted
+        float survival_probability
+        string Sex
+        int Pclass
+    }
+
+    FACTS["Q&A 사실표 · titanic_facts.csv"] {
+        string fact_id PK "원본 열: 사실ID"
+        string content "원본 열: 내용"
+        string basis "원본 열: 기준"
+        string formula "원본 열: 계산식"
+        string source "원본 열: 출처"
+        string keywords "원본 열: 검색어"
+    }
+```
+
+- 원본 승객 **891명과 분석용 승객 891명은 1:1**로 대응합니다. 분석용 파일은 이름·티켓·선실 번호를 제외하고 `FamilySize`, `IsAlone`을 추가한 복사본입니다.
+- 원본 승객 1명에 평가 예측 행은 **0개 또는 1개**입니다. 평가 대상으로 분리한 **179명만** `model/holdout_predictions.csv`에 포함됩니다. `actual`은 실제 정답, `predicted`는 모델의 분류 결과입니다.
+- Q&A 사실표는 표본 집계·모델 평가를 요약한 독립 자료입니다. 승객별 외래 키가 없으므로 관계선을 그리지 않았습니다. 모델 설명서와 보도 검수 지침도 검색용 문서입니다.
+- 수집 기록 JSON, 모델 pkl, 평가 지표 JSON은 행 단위로 연결하는 테이블이 아니므로 이 ERD에서 제외했습니다.
+
 ## 생존 예측 모델
 
 입력은 객실 등급, 기록된 성별, 나이, 동반 형제·배우자 수, 동반 부모·자녀 수, 기록된 승선 요금, 승선 항구입니다. `FamilySize=SibSp+Parch+1`, `IsAlone=(FamilySize==1)` 두 열을 추가해 총 9개 열을 전처리에 사용합니다.
