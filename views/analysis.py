@@ -1,8 +1,59 @@
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
+from plotly.subplots import make_subplots
 from titanic_core.config import SOURCE_URL
 from titanic_core.data import load_dataset, grouped_survival
+
+
+def survival_heatmap(summary):
+    sex_order = ["female", "male"]
+    class_order = [1, 2, 3]
+    rates = summary.pivot(index="Sex", columns="Pclass", values="survival_rate_pct")
+    rates = rates.reindex(index=sex_order, columns=class_order)
+    labels = {
+        (row.Sex, row.Pclass): f"{row.survival_rate_pct:.1f}%<br>{row.survivors}/{row.passengers}명"
+        for row in summary.itertuples(index=False)
+    }
+    figure = go.Figure(go.Heatmap(
+        x=["1등석", "2등석", "3등석"],
+        y=["여성", "남성"],
+        z=rates.to_numpy(),
+        text=[[labels.get((sex, cabin_class), "") for cabin_class in class_order] for sex in sex_order],
+        texttemplate="%{text}",
+        textfont={"color": "#172d45"},
+        hovertemplate="%{y} · %{x}<br>%{text}<extra></extra>",
+        hoverongaps=False,
+        zmin=0,
+        zmax=100,
+        colorscale=[[0, "#eff6ff"], [1, "#7db3f1"]],
+        colorbar={"title": "생존율", "ticksuffix": "%"},
+    ))
+    figure.update_yaxes(autorange="reversed")
+    figure.update_layout(height=300, margin={"t": 12, "b": 12})
+    return figure
+
+
+def fare_distribution(positive_fares):
+    counts = positive_fares.value_counts().sort_index()
+    cumulative_pct = counts.cumsum() / len(positive_fares) * 100
+    figure = make_subplots(rows=1, cols=2, shared_yaxes=True, subplot_titles=("선형 축", "로그 축"))
+    for column, axis_type in [(1, "linear"), (2, "log")]:
+        figure.add_trace(go.Scatter(
+            x=counts.index,
+            y=cumulative_pct,
+            mode="lines",
+            line={"shape": "hv", "color": "#2869ab"},
+            hovertemplate="운임 %{x:,.2f}<br>이하 승객 %{y:.2f}%<extra></extra>",
+            showlegend=False,
+        ), row=1, col=column)
+        figure.update_xaxes(type=axis_type, title_text="기록된 운임", row=1, col=column)
+    figure.update_yaxes(range=[0, 100], ticksuffix="%")
+    figure.update_yaxes(title_text="이하 승객 비율", row=1, col=1)
+    figure.update_layout(height=360)
+    return figure
+
 
 st.title("데이터 분석")
 try:
@@ -29,6 +80,32 @@ figure.update_yaxes(range=[0, 100])
 st.plotly_chart(figure, use_container_width=True)
 st.dataframe(table.rename(columns={"passengers": "인원(명)", "survivors": "생존자(명)", "survival_rate_pct": "생존율(%)"}), hide_index=True)
 st.caption(f"대상: 현재 필터로 선택한 CSV 승객 표본 · 항해 기간별 시계열 자료가 아님 · 출처: {SOURCE_URL}")
+
+st.subheader("성별 × 객실 등급별 생존율")
+cross_table = grouped_survival(filtered, ["Sex", "Pclass"])
+st.plotly_chart(survival_heatmap(cross_table), use_container_width=True)
+st.caption("각 칸은 해당 집단의 생존율과 생존자 수 / 전체 인원입니다. 빈칸은 선택한 필터에 해당 집단이 없다는 뜻입니다.")
+st.dataframe(
+    cross_table.assign(Sex=cross_table["Sex"].map({"female": "여성", "male": "남성"}))
+    .round({"survival_rate_pct": 1})
+    .rename(columns={"Sex": "성별", "Pclass": "객실 등급", "passengers": "인원(명)",
+                     "survivors": "생존자(명)", "survival_rate_pct": "생존율(%)"}),
+    hide_index=True,
+)
+
+st.subheader("운임 분포 · 선형 축과 로그 축")
+fares = filtered["Fare"]
+positive_fares = fares[fares.gt(0)]
+st.caption(
+    f"선택 표본에서 양수 운임 {len(positive_fares):,}명 · 운임 0 {fares.eq(0).sum():,}명 · "
+    f"기타 제외(결측 또는 음수) {len(fares) - len(positive_fares) - fares.eq(0).sum():,}명"
+)
+if positive_fares.empty:
+    st.info("선택한 표본에는 비교할 양수 운임이 없습니다.")
+else:
+    st.caption("두 그래프는 같은 양수 운임 표본을 사용합니다. 세로축은 해당 운임 이하인 승객의 비율입니다.")
+    st.plotly_chart(fare_distribution(positive_fares), use_container_width=True)
+
 st.subheader("연령 분포와 누락값")
 st.caption(f"선택 표본에서 Age 결측 {filtered['Age'].isna().sum():,}명은 아래 분포에서 제외됩니다.")
 known = filtered.dropna(subset=["Age"]).copy()
