@@ -21,4 +21,4 @@ st.markdown(f"[데이터 출처: Kaggle Titanic Dataset]({SOURCE_URL})")
 manifest = json.loads((PROJECT_ROOT / "data" / "collection_manifest.json").read_text(encoding="utf-8"))
 with st.expander("수집 이력과 분석 범위"):
     st.json(manifest)
-st.caption("AI 활용: 코드와 설명 초안 작성에 AI를 활용했습니다. 무료 Q&A는 자료 문장을 검색하며, AI 답변 모드는 별도로 선택할 수 있습니다. 결과의 최종 검토는 사용자가 합니다.")
+st.caption("코드와 설명 초안 작성에 AI를 활용했습니다. Q&A는 고정 사실표와 설명서의 원문을 표시하며, AI 근거 선택 모드를 별도로 사용할 수 있습니다. 결과의 최종 검토는 사용자가 합니다.")
