@@ -55,6 +55,58 @@ def fare_distribution(positive_fares):
     return figure
 
 
+def fare_outlier_chart(passengers):
+    """선택한 승객을 등급별로 나눠 운임 상한과 초과 인원을 계산한다."""
+    rows = []
+    high_fares = []
+    for cabin_class, group in passengers.groupby("Pclass", sort=True):
+        fares = group["Fare"]
+        q1, median, q3 = fares.quantile([0.25, 0.5, 0.75])
+        iqr = q3 - q1
+        lower_limit = q1 - 1.5 * iqr
+        upper_limit = q3 + 1.5 * iqr
+        in_range = fares[fares.between(lower_limit, upper_limit)]
+        above_limit = fares[fares.gt(upper_limit)]
+        label = f"{cabin_class}등석"
+        rows.append({
+            "객실 등급": label,
+            "운임 기록 인원(명)": len(fares),
+            "Q1": q1,
+            "중앙값": median,
+            "Q3": q3,
+            "IQR": iqr,
+            "상한": upper_limit,
+            "상한 초과(명)": len(above_limit),
+            "상한 초과 비율(%)": round(len(above_limit) / len(fares) * 100, 1),
+            "왼쪽 수염": in_range.min(),
+            "오른쪽 수염": in_range.max(),
+        })
+        high_fares.extend((label, fare) for fare in above_limit)
+
+    summary = pd.DataFrame(rows)
+    figure = go.Figure(go.Box(
+        y=summary["객실 등급"], q1=summary["Q1"], median=summary["중앙값"], q3=summary["Q3"],
+        lowerfence=summary["왼쪽 수염"], upperfence=summary["오른쪽 수염"],
+        orientation="h", boxpoints=False, name="운임 분포", marker_color="#2869ab",
+    ))
+    if high_fares:
+        labels, fares = zip(*high_fares)
+        figure.add_trace(go.Scatter(
+            x=fares, y=labels, mode="markers", name="상한 초과",
+            marker={"color": "#c94a2a", "size": 7},
+            hovertemplate="%{y}<br>기록된 운임 %{x:.4f}<extra>상한 초과</extra>",
+        ))
+    figure.add_trace(go.Scatter(
+        x=summary["상한"], y=summary["객실 등급"], mode="markers", name="상한 기준",
+        marker={"color": "#172d45", "symbol": "diamond-open", "size": 10},
+        hovertemplate="%{y}<br>상한 %{x:.4f}<extra></extra>",
+    ))
+    figure.update_xaxes(title_text="기록된 운임")
+    figure.update_yaxes(autorange="reversed", categoryorder="array", categoryarray=summary["객실 등급"].tolist())
+    figure.update_layout(height=340, legend={"orientation": "h"})
+    return figure, summary.drop(columns=["왼쪽 수염", "오른쪽 수염"]).round(4)
+
+
 st.title("데이터 분석")
 try:
     data = load_dataset()
@@ -105,6 +157,20 @@ if positive_fares.empty:
 else:
     st.caption("두 그래프는 같은 양수 운임 표본을 사용합니다. 세로축은 해당 운임 이하인 승객의 비율입니다.")
     st.plotly_chart(fare_distribution(positive_fares), use_container_width=True)
+
+st.subheader("객실 등급별 높은 운임 후보 · IQR")
+st.caption("같은 객실 등급 안에서도 운임이 유난히 높게 기록된 승객은 몇 명인가요?")
+recorded_fares = filtered[filtered["Fare"].ge(0)]
+if recorded_fares.empty:
+    st.info("선택한 표본에는 비교할 운임 기록이 없습니다.")
+else:
+    figure, outlier_summary = fare_outlier_chart(recorded_fares)
+    st.plotly_chart(figure, use_container_width=True)
+    st.dataframe(outlier_summary, hide_index=True)
+    st.caption(
+        "현재 필터에서 등급별로 계산합니다. IQR = Q3 − Q1, 상한 = Q3 + 1.5 × IQR입니다. "
+        "기록된 운임이 상한을 넘는 승객을 후보로 표시합니다. 운임 0은 이 계산에 포함합니다."
+    )
 
 st.subheader("연령 분포와 누락값")
 st.caption(f"선택 표본에서 Age 결측 {filtered['Age'].isna().sum():,}명은 아래 분포에서 제외됩니다.")
