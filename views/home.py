@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 import streamlit as st
 from titanic_core.config import PROJECT_ROOT, SOURCE_URL
 from titanic_core.data import load_dataset
@@ -20,5 +21,18 @@ st.markdown("데이터 분석에서 집단별 생존율을 확인하고, 생존 
 st.markdown(f"[데이터 출처: Kaggle Titanic Dataset]({SOURCE_URL})")
 manifest = json.loads((PROJECT_ROOT / "data" / "collection_manifest.json").read_text(encoding="utf-8"))
 with st.expander("수집 이력과 분석 범위"):
+    st.markdown(f"**데이터 출처:** [Kaggle Titanic Dataset]({manifest['source_url']})")
+    collected_at = datetime.fromisoformat(manifest["collected_at_utc"].replace("Z", "+00:00"))
+    if collected_at.tzinfo is None:
+        collected_at = collected_at.replace(tzinfo=timezone.utc)
+    collected_at_kst = collected_at.astimezone(timezone(timedelta(hours=9)))
+    st.write("수집 시각:", collected_at_kst.strftime("%Y년 %m월 %d일 %H:%M:%S (한국 시간)"))
+    st.write("데이터 버전:", manifest["dataset_handle"])
+    st.write("분석 대상:", f"생존 여부가 기록된 승객 표본 {manifest['rows']:,}명")
+    st.write("원본 구성:", f"{manifest['rows']:,}행 · {len(manifest['columns'])}개 열")
+    st.write("분석 범위:", manifest["scope"])
+    st.caption("수집 당시 기록된 이용 조건: " + manifest["license_at_collection"])
+with st.expander("상세 수집 기록"):
+    st.caption("출처·수집 방법·파일 검증값을 포함한 원본 기록입니다.")
     st.json(manifest)
 st.caption("코드와 설명 초안 작성에 AI를 활용했습니다. Q&A는 고정 사실표와 설명서의 원문을 표시하며, AI 근거 선택 모드를 별도로 사용할 수 있습니다. 결과의 최종 검토는 사용자가 합니다.")
